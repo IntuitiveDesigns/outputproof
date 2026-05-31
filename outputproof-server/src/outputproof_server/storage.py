@@ -182,6 +182,64 @@ class VerificationStore:
         stats.sort(key=lambda item: item["last_verification"], reverse=True)
         return stats
 
+    def list_reliability_leaderboard(
+        self,
+        dimension: str = "agent",
+        days: int = 30,
+        limit: int = 20,
+        worst_first: bool = True,
+    ) -> list[dict[str, Any]]:
+        """Rank reliability by agent, developer, or task type."""
+        if dimension not in {"agent", "developer", "task_type"}:
+            raise ValueError("dimension must be one of: agent, developer, task_type")
+
+        records = self.recent_verifications(max(days, 1))
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for record in records:
+            key = self._leaderboard_key(record, dimension)
+            grouped.setdefault(key, []).append(record)
+
+        rows = []
+        for name, group_records in grouped.items():
+            passed = sum(1 for record in group_records if record.get("verdict") == "PASS")
+            failed = sum(1 for record in group_records if record.get("verdict") == "FAIL")
+            partial = sum(1 for record in group_records if record.get("verdict") == "PARTIAL")
+            total = len(group_records)
+            avg_confidence = sum(
+                float(record.get("confidence_score", 0)) for record in group_records
+            ) / total
+            rows.append(
+                {
+                    "dimension": dimension,
+                    "name": name,
+                    "total_verifications": total,
+                    "passed": passed,
+                    "failed": failed,
+                    "partial": partial,
+                    "pass_rate": round(passed / total, 3),
+                    "avg_confidence": round(avg_confidence, 3),
+                    "last_verification": max(record["timestamp"] for record in group_records),
+                }
+            )
+
+        if worst_first:
+            rows.sort(
+                key=lambda item: (
+                    item["pass_rate"],
+                    -item["total_verifications"],
+                    item["name"],
+                )
+            )
+        else:
+            rows.sort(
+                key=lambda item: (
+                    -item["pass_rate"],
+                    -item["total_verifications"],
+                    item["name"],
+                )
+            )
+        return rows[: max(limit, 0)]
+
     def get_agent_details(self, agent_id: str) -> Optional[dict[str, Any]]:
         """Return detailed stats and recent records for one agent."""
         records, total = self.list_verifications(limit=10000, agent_id=agent_id)
@@ -217,6 +275,27 @@ class VerificationStore:
             "failure_categories": failure_categories,
             "recent_verifications": records[:10],
         }
+
+    def _leaderboard_key(self, record: dict[str, Any], dimension: str) -> str:
+        metadata = record.get("metadata")
+        if not isinstance(metadata, dict):
+            metadata = {}
+
+        if dimension == "agent":
+            return str(record.get("agent_id") or metadata.get("agent_id") or "unknown")
+
+        if dimension == "developer":
+            github = metadata.get("github")
+            if not isinstance(github, dict):
+                github = {}
+            return str(
+                record.get("developer_id")
+                or metadata.get("developer_id")
+                or github.get("actor")
+                or "unknown"
+            )
+
+        return str(record.get("task_type") or metadata.get("task_type") or "unknown")
 
     def close(self) -> None:
         """Close the underlying SQLite connection."""

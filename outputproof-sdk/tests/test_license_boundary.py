@@ -36,7 +36,7 @@ def test_sdk_metadata_stays_apache_only():
     assert '"uvicorn>=0.27.0"' not in pyproject
     assert '"aiosqlite' not in pyproject
     assert 'name = "outputproof"' in pyproject
-    assert '"outputproof-server>=1.0.0"' in pyproject
+    assert '"outputproof-server>=1.1.0"' in pyproject
 
 
 def test_commercial_docs_describe_bsl_server_boundary():

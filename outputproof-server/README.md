@@ -15,9 +15,10 @@ OutputProof product requirements:
 - local and team dashboard API
 - verification history views
 - agent reliability scorecards
+- team reliability leaderboard across agents, developers, and task types
 - failure pattern analysis foundations
 - SQLite-backed local persistence with no external database required
-- future policy engine, team aggregation, and cloud sync hooks
+- future policy engine and cloud sync hooks
 
 The core SDK, assertion engine, LLM-as-judge module, CLI, and MCP integration
 remain Apache 2.0 in `outputproof`.
@@ -35,6 +36,16 @@ In normal local use, the CLI sends those records when `OUTPUTPROOF_SERVER_URL`
 points at the running server. In production/team use, CI jobs, agent runners,
 MCP integrations, or application code send the same `VerificationResult` JSON
 to the API.
+
+The v1.1 GitHub Actions gate includes `developer_id`, `task_type`, changed-file,
+and GitHub run metadata in each verification record. The server uses that
+metadata to populate the team reliability leaderboard:
+
+```text
+GET /api/leaderboard?dimension=agent
+GET /api/leaderboard?dimension=developer
+GET /api/leaderboard?dimension=task_type
+```
 
 The server does not scan your workspace and does not automatically import the
 SDK local history file at `~/.outputproof/verifications.jsonl`; that local file
@@ -102,7 +113,7 @@ python -m outputproof.cli.main verify --agent-id demo-agent --prompt "Create aut
 ```
 
 Refresh `http://127.0.0.1:8080`; the summary cards, recent verifications table,
-and agent reliability table should update.
+agent reliability table, and team reliability leaderboard should update.
 
 Expected dashboard change:
 
@@ -111,6 +122,7 @@ Total Verifications: 1
 Pass Rate: 100%
 Recent Verifications: demo-agent / PASS
 Agent Reliability: demo-agent
+Team Reliability Leaderboard: demo-agent
 ```
 
 You can also insert a dashboard record directly through the API:

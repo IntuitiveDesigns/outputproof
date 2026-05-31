@@ -8,7 +8,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "outputproof-server"
-version = "1.0.0"
+version = "1.1.0"
 description = "OutputProof source-available dashboard server and team API"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -40,7 +40,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "outputproof>=1.0.0",
+    "outputproof>=1.1.0",
     "fastapi>=0.109.0",
     "uvicorn>=0.27.0",
     "pydantic>=2.0.0",

@@ -42,7 +42,7 @@ def test_api_status(tmp_path):
     assert response.status_code == 200
     assert response.json() == {
         "name": "OutputProof Dashboard",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "status": "running",
     }
 
@@ -107,3 +107,60 @@ def test_verifications_persist_to_sqlite(tmp_path):
     assert create_response.status_code == 200
     assert get_response.status_code == 200
     assert get_response.json()["request_id"] == "req-persisted"
+
+
+def test_team_reliability_leaderboard_groups_metadata(tmp_path):
+    client = make_client(tmp_path)
+    payloads = [
+        {
+            "request_id": "req-dev-pass",
+            "agent_id": "agent-a",
+            "verdict": "PASS",
+            "confidence_score": 0.95,
+            "assertion_results": [],
+            "metadata": {"developer_id": "dev-a", "task_type": "auth"},
+        },
+        {
+            "request_id": "req-dev-fail",
+            "agent_id": "agent-b",
+            "verdict": "FAIL",
+            "confidence_score": 0.2,
+            "assertion_results": [],
+            "metadata": {"developer_id": "dev-b", "task_type": "auth"},
+        },
+        {
+            "request_id": "req-dev-partial",
+            "agent_id": "agent-b",
+            "verdict": "PARTIAL",
+            "confidence_score": 0.5,
+            "assertion_results": [],
+            "metadata": {"developer_id": "dev-b", "task_type": "tests"},
+        },
+    ]
+
+    for payload in payloads:
+        response = client.post("/api/verifications", json=payload)
+        assert response.status_code == 200
+
+    developer_response = client.get("/api/leaderboard?dimension=developer&days=30")
+    task_response = client.get("/api/leaderboard?dimension=task_type&days=30")
+
+    assert developer_response.status_code == 200
+    developers = developer_response.json()
+    assert developers[0]["name"] == "dev-b"
+    assert developers[0]["pass_rate"] == 0
+    assert developers[0]["failed"] == 1
+    assert developers[0]["partial"] == 1
+
+    assert task_response.status_code == 200
+    tasks = task_response.json()
+    assert tasks[0]["name"] == "tests"
+    assert tasks[0]["pass_rate"] == 0
+
+
+def test_leaderboard_rejects_unknown_dimension(tmp_path):
+    client = make_client(tmp_path)
+
+    response = client.get("/api/leaderboard?dimension=repository")
+
+    assert response.status_code == 400

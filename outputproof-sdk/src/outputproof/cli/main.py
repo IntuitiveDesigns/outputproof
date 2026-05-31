@@ -32,11 +32,17 @@ from typing import Optional
 import click
 import httpx
 from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
 from rich.logging import RichHandler
+from rich.panel import Panel
+from rich.table import Table
 
 import outputproof
+from outputproof.github_actions import (
+    append_step_summary,
+    build_gate_payload,
+    format_step_summary,
+    resolve_assertion_paths,
+)
 from outputproof.models import VerificationResult, VerificationVerdict
 from outputproof.storage import append_verification, get_verification, load_verifications
 
@@ -60,7 +66,7 @@ def load_assertions_from_yaml(path: str) -> list:
 
     from outputproof.assertions import assertion_from_config
 
-    with open(path, "r", encoding="utf-8") as file:
+    with open(path, encoding="utf-8") as file:
         raw_config = yaml.safe_load(file) or {}
 
     if isinstance(raw_config, list):
@@ -74,6 +80,40 @@ def load_assertions_from_yaml(path: str) -> list:
         raise click.ClickException("'assertions' must be a list.")
 
     return [assertion_from_config(config) for config in assertion_configs]
+
+
+def _read_text_argument(
+    label: str,
+    value: Optional[str],
+    file_paths: tuple[str, ...],
+) -> str:
+    """Resolve a CLI text argument from an inline value or file path(s)."""
+    if value is not None and file_paths:
+        option = label.replace("_", "-")
+        raise click.ClickException(
+            f"Provide either --{option} or --{option}-file, not both."
+        )
+    if value is not None:
+        return value
+    if not file_paths:
+        option = label.replace("_", "-")
+        raise click.ClickException(
+            f"Missing required {label}. Provide --{option} or --{option}-file."
+        )
+
+    sections = []
+    for file_path in file_paths:
+        path = Path(file_path)
+        content = path.read_text(encoding="utf-8")
+        if len(file_paths) == 1:
+            sections.append(content)
+        else:
+            sections.append(
+                f"=== File: {path.as_posix()} ===\n"
+                f"{content.rstrip()}\n"
+                f"=== End File: {path.as_posix()} ==="
+            )
+    return "\n\n".join(sections)
 
 
 @click.group(invoke_without_command=True)
@@ -108,16 +148,29 @@ def cli(ctx: click.Context, version: bool) -> None:
 
 
 @cli.command()
-@click.option("--prompt", required=True, help="The original prompt given to the agent.")
-@click.option("--output", required=True, help="The output produced by the agent.")
+@click.option("--prompt", help="The original prompt given to the agent.")
+@click.option(
+    "--prompt-file",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Read the original prompt from a text file.",
+)
+@click.option("--output", help="The output produced by the agent.")
+@click.option(
+    "--output-file",
+    multiple=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Read agent output from one or more text files.",
+)
 @click.option("--agent-id", default="default", help="Agent identifier.")
 @click.option("--assertions", "-a", multiple=True, help="Assertion config files (YAML).")
 @click.option("--use-judge", is_flag=True, help="Use LLM-as-Judge for scoring.")
 @click.option("--judge-model", default="claude-haiku-4-5", help="Judge model to use.")
 @click.option("--output-json", is_flag=True, help="Output result as JSON.")
 def verify(
-    prompt: str,
-    output: str,
+    prompt: Optional[str],
+    prompt_file: Optional[str],
+    output: Optional[str],
+    output_file: tuple[str, ...],
     agent_id: str,
     assertions: tuple[str, ...],
     use_judge: bool,
@@ -132,14 +185,26 @@ def verify(
     \b
     Examples:
         outputproof verify --prompt "Create auth" --output "def authenticate():..."
+        outputproof verify --prompt-file prompt.txt --output-file agent-output.txt
         outputproof verify --prompt "Create auth" --output "..." --use-judge
         outputproof verify --prompt "Create auth" --output "..." -a assertions.yaml
     """
-    from outputproof.core import Verifier, VerificationError
-    from outputproof.models import RetryConfig
+    from outputproof.core import VerificationError, Verifier
     from outputproof.judge import JudgeConfig
+    from outputproof.models import RetryConfig
 
     async def run_verification() -> None:
+        prompt_text = _read_text_argument(
+            label="prompt",
+            value=prompt,
+            file_paths=(prompt_file,) if prompt_file else (),
+        )
+        output_text = _read_text_argument(
+            label="output",
+            value=output,
+            file_paths=output_file,
+        )
+
         # Load assertions from files if provided
         assertion_list = []
         for assertion_file in assertions:
@@ -176,8 +241,8 @@ def verify(
         # Run verification
         try:
             result = await verifier.verify(
-                prompt=prompt,
-                output=output,
+                prompt=prompt_text,
+                output=output_text,
                 agent_id=agent_id,
             )
 
@@ -202,6 +267,185 @@ def verify(
             ctx.exit(1)
 
     asyncio.run(run_verification())
+
+
+@cli.command("github-gate")
+@click.option(
+    "--assertions",
+    "assertion_paths",
+    "-a",
+    multiple=True,
+    help=(
+        "Assertion config files (YAML). Defaults to .outputproof/github-gate.yaml, "
+        ".outputproof/assertions.yaml, or outputproof/assertions.yaml."
+    ),
+)
+@click.option("--base-ref", help="Git ref to diff against. Defaults to GitHub base ref.")
+@click.option(
+    "--include",
+    "include_patterns",
+    multiple=True,
+    help="Changed-file glob to include. Can be repeated.",
+)
+@click.option(
+    "--exclude",
+    "exclude_patterns",
+    multiple=True,
+    help="Changed-file glob to exclude. Can be repeated.",
+)
+@click.option(
+    "--output-file",
+    multiple=True,
+    type=click.Path(exists=True, dir_okay=False),
+    help="Explicit agent output file(s) to verify instead of the Git diff.",
+)
+@click.option("--prompt", help="Prompt or task description for this gate run.")
+@click.option(
+    "--prompt-file",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Read the prompt or task description from a text file.",
+)
+@click.option(
+    "--agent-id",
+    default=None,
+    help="Agent identifier. Defaults to OUTPUTPROOF_AGENT_ID or GITHUB_ACTOR.",
+)
+@click.option(
+    "--developer-id",
+    default=None,
+    help="Developer identifier for team reliability analytics.",
+)
+@click.option(
+    "--task-type",
+    default=None,
+    help="Task type for team reliability analytics, such as code_generation.",
+)
+@click.option("--use-judge", is_flag=True, help="Use LLM-as-Judge for scoring.")
+@click.option("--judge-model", default="claude-haiku-4-5", help="Judge model to use.")
+@click.option(
+    "--max-file-bytes",
+    default=262144,
+    show_default=True,
+    help="Maximum size for each changed text file included in the gate payload.",
+)
+@click.option(
+    "--summary-file",
+    envvar="GITHUB_STEP_SUMMARY",
+    help="Markdown file to append a GitHub Actions job summary to.",
+)
+@click.option("--output-json", is_flag=True, help="Output result as JSON.")
+def github_gate(
+    assertion_paths: tuple[str, ...],
+    base_ref: Optional[str],
+    include_patterns: tuple[str, ...],
+    exclude_patterns: tuple[str, ...],
+    output_file: tuple[str, ...],
+    prompt: Optional[str],
+    prompt_file: Optional[str],
+    agent_id: Optional[str],
+    developer_id: Optional[str],
+    task_type: Optional[str],
+    use_judge: bool,
+    judge_model: str,
+    max_file_bytes: int,
+    summary_file: Optional[str],
+    output_json: bool,
+) -> None:
+    """Block a GitHub Actions run when changed agent output fails verification.
+
+    The gate loads assertion YAML, builds a verification output from changed PR
+    files or explicit output files, writes a GitHub step summary, and exits
+    non-zero unless the verdict is PASS.
+    """
+    from outputproof.core import Verifier
+    from outputproof.judge import JudgeConfig
+    from outputproof.models import RetryConfig
+
+    async def run_gate() -> None:
+        resolved_assertions = resolve_assertion_paths(assertion_paths)
+        if not resolved_assertions:
+            raise click.ClickException(
+                "No assertion config found. Add .outputproof/github-gate.yaml "
+                "or pass one or more --assertions files."
+            )
+
+        assertion_list = []
+        for assertion_file in resolved_assertions:
+            try:
+                assertion_list.extend(load_assertions_from_yaml(assertion_file))
+            except Exception as e:
+                raise click.ClickException(f"Error loading {assertion_file}: {e}") from e
+
+        judge_config = None
+        if use_judge:
+            api_key = _load_judge_api_key(judge_model)
+            use_local = judge_model.startswith("ollama/")
+            model = judge_model.split("/", 1)[1] if use_local else judge_model
+            if not use_local and not api_key:
+                raise click.ClickException(
+                    "No judge API key found. Set ANTHROPIC_API_KEY or OPENAI_API_KEY, "
+                    "or use a local model name like 'ollama/llama3'."
+                )
+
+            judge_config = JudgeConfig(
+                model=model,
+                api_key=api_key,
+                use_local=use_local,
+            )
+
+        try:
+            payload = build_gate_payload(
+                prompt=prompt,
+                prompt_file=prompt_file,
+                output_files=output_file,
+                base_ref=base_ref,
+                include_patterns=include_patterns,
+                exclude_patterns=exclude_patterns,
+                agent_id=agent_id,
+                developer_id=developer_id,
+                task_type=task_type,
+                max_file_bytes=max_file_bytes,
+            )
+        except RuntimeError as e:
+            raise click.ClickException(
+                f"Could not collect changed files for the gate: {e}. "
+                "In GitHub Actions, use actions/checkout with fetch-depth: 0."
+            ) from e
+
+        verifier = Verifier(
+            assertions=assertion_list,
+            judge_config=judge_config,
+            retry_config=RetryConfig(enabled=False),
+        )
+        result = await verifier.verify(
+            prompt=payload.prompt,
+            output=payload.output,
+            agent_id=str(payload.metadata["agent_id"]),
+            context={
+                "developer_id": payload.metadata["developer_id"],
+                "task_type": payload.metadata["task_type"],
+                "github": payload.metadata["github"],
+            },
+        )
+        result.metadata.update(payload.metadata)
+
+        summary = format_step_summary(result, payload)
+        append_step_summary(summary_file, summary)
+
+        if output_json:
+            console.print(json.dumps(result.to_dict(), indent=2))
+        else:
+            _print_verification_result(result)
+            if summary_file:
+                console.print(f"[dim]Wrote GitHub step summary to {summary_file}.[/dim]")
+
+        _persist_verification(result, output_json)
+
+        if not result.passed:
+            ctx = click.get_current_context()
+            ctx.exit(1)
+
+    asyncio.run(run_gate())
 
 
 def _load_judge_api_key(model: str) -> Optional[str]:
@@ -346,7 +590,7 @@ def policy() -> None:
 @click.option("--output-json", is_flag=True, help="Output as JSON.")
 def list_policies(output_json: bool) -> None:
     """List all verification policies."""
-    from outputproof.models import Policy, EnforcementMode
+    from outputproof.models import EnforcementMode, Policy
 
     # Sample policies for demo
     policies = [
@@ -402,7 +646,7 @@ def create_policy(
     threshold: float,
 ) -> None:
     """Create a new verification policy."""
-    from outputproof.models import Policy, EnforcementMode
+    from outputproof.models import EnforcementMode, Policy
 
     policy = Policy(
         policy_id=f"pol-{datetime.now().strftime('%Y%m%d%H%M%S')}",
@@ -422,7 +666,7 @@ def create_policy(
 def delete_policy(policy_id: str) -> None:
     """Delete a verification policy."""
     # TODO: Implement policy deletion
-    console.print(f"[yellow]Policy deletion not yet implemented.[/yellow]")
+    console.print("[yellow]Policy deletion not yet implemented.[/yellow]")
     console.print(f"Would delete policy ID: [bold]{policy_id}[/bold]")
 
 

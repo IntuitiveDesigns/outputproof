@@ -12,7 +12,7 @@ surface that protects the commercial lane under BSL 1.1.
 
 from outputproof_server.app import create_app
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __license__ = "BUSL-1.1"
 
 __all__ = ["__license__", "__version__", "create_app"]

@@ -26,7 +26,7 @@ work is trusted or acted upon.
 | Package | License | Description |
 |---------|---------|-------------|
 | [outputproof-sdk](./outputproof-sdk) | Apache 2.0 | Core SDK: assertion engine, LLM-as-judge, CLI, MCP/LangChain integrations |
-| [outputproof-server](./outputproof-server) | BSL 1.1 | Dashboard server: verification history, SQLite storage, agent reliability scoring |
+| [outputproof-server](./outputproof-server) | BSL 1.1 | Dashboard server: verification history, SQLite storage, agent/team reliability scoring |
 
 ## Install From Source
 
@@ -83,6 +83,27 @@ python -m outputproof.cli.main verify --agent-id demo-agent --prompt "Create aut
 
 Open `http://127.0.0.1:8080`. You should see `demo-agent`, a `PASS` verdict,
 and the dashboard counters update.
+
+## GitHub Actions Gate
+
+OutputProof v1.1 adds a PR gate that exits non-zero when changed agent output
+fails verification. Add assertion rules such as `.outputproof/github-gate.yaml`,
+then run the gate from a workflow:
+
+```yaml
+- name: OutputProof GitHub Actions gate
+  env:
+    OUTPUTPROOF_AGENT_ID: ${{ github.actor }}
+    OUTPUTPROOF_DEVELOPER_ID: ${{ github.actor }}
+    OUTPUTPROOF_TASK_TYPE: code_generation
+    OUTPUTPROOF_BASE_REF: origin/${{ github.base_ref || 'main' }}
+  run: python -m outputproof.cli.main github-gate --assertions .outputproof/github-gate.yaml
+```
+
+See [`.github/workflows/outputproof-gate.yml`](./.github/workflows/outputproof-gate.yml)
+for a complete workflow. The gate writes a GitHub job summary, stores the
+verification locally, syncs to `OUTPUTPROOF_SERVER_URL` when configured, and
+blocks the PR unless the verdict is `PASS`.
 
 ## Python SDK
 

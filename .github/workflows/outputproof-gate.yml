@@ -1,0 +1,41 @@
+name: OutputProof Gate
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  outputproof-gate:
+    name: Verify Agent Output
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install OutputProof
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e "./outputproof-sdk[dev]"
+
+      - name: OutputProof GitHub Actions gate
+        env:
+          OUTPUTPROOF_AGENT_ID: ${{ github.actor }}
+          OUTPUTPROOF_DEVELOPER_ID: ${{ github.actor }}
+          OUTPUTPROOF_TASK_TYPE: code_generation
+          OUTPUTPROOF_BASE_REF: origin/${{ github.base_ref || 'main' }}
+        run: |
+          python -m outputproof.cli.main github-gate \
+            --assertions .outputproof/github-gate.yaml

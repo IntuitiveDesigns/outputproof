@@ -49,7 +49,7 @@ from outputproof.models import (
 from outputproof import assertions
 from outputproof.judge import JudgeConfig, LLMJudge
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "StreamKernel LLC"
 __email__ = "steven.lopez@streamkernel.io"
 __license__ = "Apache-2.0"

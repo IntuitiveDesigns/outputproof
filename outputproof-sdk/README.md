@@ -32,7 +32,7 @@ AI agent output -> OutputProof SDK assertions/judge -> VerificationResult -> loc
 Common usage patterns:
 
 - **Local development** — Run `python -m outputproof.cli.main verify ...` against an agent output before accepting it.
-- **CI or automation** — Run the CLI after an agent writes files; the command exits non-zero when verification fails.
+- **CI or automation** — Run `python -m outputproof.cli.main github-gate` after an agent writes files; the command exits non-zero when verification fails.
 - **Application code** — Wrap an agent function with `@outputproof.verify(...)` so generated output is checked before downstream code receives it.
 - **Team visibility** — Run `outputproof-server` and set `OUTPUTPROOF_SERVER_URL` so CLI verification results are sent to the dashboard.
 
@@ -45,6 +45,7 @@ sends verification results to the server API.
 - 🔍 **Assertion Engine** — Structural, behavioral, semantic, and contract assertions
 - 🤖 **LLM-as-Judge** — Configurable secondary scoring with any OpenAI-compatible endpoint
 - 🔄 **Retry Orchestration** — Automatic decorator retry with corrective prompts
+- 🧱 **GitHub Actions Gate** — PR-blocking verification with GitHub job summaries
 - 📊 **Verification Dashboard** — Separate BSL 1.1 `outputproof-server` package
 - 🔌 **Multiple Integrations** — Claude Code MCP and LangChain today; OpenAI Agents, Cursor, and REST proxy planned
 - 🛡️ **Local-First** — Zero required cloud dependency for core verification
@@ -104,6 +105,38 @@ python -m outputproof.cli.main --help
 
 If PowerShell says `outputproof` is not recognized, keep using the `python -m`
 form above.
+
+### GitHub Actions Gate
+
+The `github-gate` command turns OutputProof into an enforcement step. It loads
+YAML assertions, builds the verification output from changed PR files, writes a
+GitHub job summary, and exits non-zero unless the verdict is `PASS`.
+
+Add an assertion file:
+
+```yaml
+# .outputproof/github-gate.yaml
+assertions:
+  - type: command_succeeds
+    command: python -m pytest -q
+    timeout: 180
+```
+
+Then add a workflow step after checkout and install:
+
+```yaml
+- name: OutputProof GitHub Actions gate
+  env:
+    OUTPUTPROOF_AGENT_ID: ${{ github.actor }}
+    OUTPUTPROOF_DEVELOPER_ID: ${{ github.actor }}
+    OUTPUTPROOF_TASK_TYPE: code_generation
+    OUTPUTPROOF_BASE_REF: origin/${{ github.base_ref || 'main' }}
+  run: python -m outputproof.cli.main github-gate --assertions .outputproof/github-gate.yaml
+```
+
+Use `actions/checkout` with `fetch-depth: 0` so the gate can diff the PR against
+the base branch. Set `OUTPUTPROOF_SERVER_URL` to also send CI results to the
+dashboard and team leaderboard.
 
 ### See The Dashboard Populate
 
@@ -324,9 +357,9 @@ BSL 1.1.
 - [x] CLI interface
 - [x] Dashboard server split into BSL 1.1 `outputproof-server`
 - [x] LangChain callback integration
-- [ ] Production Claude Code MCP server (v1.0 GA)
-- [ ] GitHub Actions gate (v1.0 GA)
-- [ ] Team aggregation (v1.1)
+- [x] GitHub Actions gate (v1.1)
+- [x] Team reliability leaderboard (v1.1)
+- [ ] Production Claude Code MCP server
 - [ ] Policy engine (v1.1)
 
 ## Open Core and Commercial Features

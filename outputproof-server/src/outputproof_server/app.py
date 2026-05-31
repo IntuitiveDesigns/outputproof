@@ -21,6 +21,8 @@ from pydantic import BaseModel
 from outputproof_server.storage import VerificationStore
 from outputproof_server.time import utc_now
 
+SERVER_VERSION = "1.1.0"
+
 
 class VerificationSummary(BaseModel):
     """Summary of verification statistics."""
@@ -37,6 +39,20 @@ class AgentStats(BaseModel):
 
     agent_id: str
     total_verifications: int
+    pass_rate: float
+    avg_confidence: float
+    last_verification: Optional[str] = None
+
+
+class ReliabilityLeaderboardRow(BaseModel):
+    """Reliability ranking row for a team analytics dimension."""
+
+    dimension: str
+    name: str
+    total_verifications: int
+    passed: int
+    failed: int
+    partial: int
     pass_rate: float
     avg_confidence: float
     last_verification: Optional[str] = None
@@ -61,7 +77,7 @@ def create_app(
     app = FastAPI(
         title="OutputProof Dashboard",
         description="AI Agent Output Verification Platform - Dashboard API",
-        version="1.0.0",
+        version=SERVER_VERSION,
         debug=debug,
     )
 
@@ -103,7 +119,7 @@ def register_routes(app: FastAPI) -> None:
         """Server status endpoint."""
         return {
             "name": "OutputProof Dashboard",
-            "version": "1.0.0",
+            "version": SERVER_VERSION,
             "status": "running",
         }
 
@@ -196,6 +212,30 @@ def register_routes(app: FastAPI) -> None:
             raise HTTPException(status_code=404, detail="Agent not found")
         return agent
 
+    @app.get("/api/leaderboard")
+    async def get_reliability_leaderboard(
+        dimension: str = "agent",
+        days: int = 30,
+        limit: int = 20,
+        sort: str = "worst",
+    ) -> list[ReliabilityLeaderboardRow]:
+        """Rank agents, developers, or task types by verification reliability."""
+        if dimension not in {"agent", "developer", "task_type"}:
+            raise HTTPException(
+                status_code=400,
+                detail="dimension must be one of: agent, developer, task_type",
+            )
+        if sort not in {"worst", "best"}:
+            raise HTTPException(status_code=400, detail="sort must be worst or best")
+
+        rows = app.state.store.list_reliability_leaderboard(
+            dimension=dimension,
+            days=days,
+            limit=limit,
+            worst_first=sort == "worst",
+        )
+        return [ReliabilityLeaderboardRow(**row) for row in rows]
+
     @app.get("/api/failures")
     async def list_failures(
         limit: int = 20,
@@ -285,6 +325,22 @@ def register_routes(app: FastAPI) -> None:
                     padding-bottom: 0.5rem;
                     border-bottom: 1px solid #333;
                 }
+                .leaderboard-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+                    gap: 1.5rem;
+                }
+                .leaderboard-block h3 {
+                    color: #cbd5e1;
+                    font-size: 0.95rem;
+                    font-weight: 600;
+                    margin-bottom: 0.75rem;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                }
+                .table-wrap {
+                    overflow-x: auto;
+                }
                 table {
                     width: 100%;
                     border-collapse: collapse;
@@ -320,6 +376,11 @@ def register_routes(app: FastAPI) -> None:
                 .loading {
                     text-align: center;
                     padding: 3rem;
+                    color: #666;
+                }
+                .empty-state {
+                    text-align: center;
+                    padding: 2rem;
                     color: #666;
                 }
             </style>
@@ -362,13 +423,58 @@ def register_routes(app: FastAPI) -> None:
                         <div class="loading">Loading...</div>
                     </div>
                 </div>
+
+                <div class="section">
+                    <h2>Team Reliability Leaderboard</h2>
+                    <div class="leaderboard-grid">
+                        <div class="leaderboard-block">
+                            <h3>Worst Agents</h3>
+                            <div id="leaderboardAgents">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                        <div class="leaderboard-block">
+                            <h3>Worst Developers</h3>
+                            <div id="leaderboardDevelopers">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                        <div class="leaderboard-block">
+                            <h3>Worst Task Types</h3>
+                            <div id="leaderboardTasks">
+                                <div class="loading">Loading...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div class="footer">
-                <p>OutputProof Server v1.0.0 | BSL 1.1 | StreamKernel LLC</p>
+                <p>OutputProof Server v1.1.0 | BSL 1.1 | StreamKernel LLC</p>
             </div>
 
             <script>
+                function renderLeaderboard(rows, emptyLabel) {
+                    if (rows.length === 0) {
+                        return `<p class="empty-state">${emptyLabel}</p>`;
+                    }
+                    return `<div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Name</th><th>Runs</th><th>Pass Rate</th><th>Non-Pass</th></tr></thead>
+                            <tbody>
+                                ${rows.map(row => `
+                                    <tr>
+                                        <td>${row.name}</td>
+                                        <td>${row.total_verifications}</td>
+                                        <td>${(row.pass_rate * 100).toFixed(0)}%</td>
+                                        <td>${row.failed + row.partial}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>`;
+                }
+
                 async function loadData() {
                     try {
                         // Load summary
@@ -413,6 +519,17 @@ def register_routes(app: FastAPI) -> None:
                                 </tbody>
                             </table>` : '<p style="text-align:center;padding:2rem;color:#666;">No agents registered</p>';
                         document.getElementById('agents').innerHTML = agentsHTML;
+
+                        // Load team reliability leaderboards
+                        const leaderboardConfigs = [
+                            ['agent', 'leaderboardAgents', 'No agent reliability data yet'],
+                            ['developer', 'leaderboardDevelopers', 'No developer reliability data yet'],
+                            ['task_type', 'leaderboardTasks', 'No task type reliability data yet']
+                        ];
+                        await Promise.all(leaderboardConfigs.map(async ([dimension, elementId, emptyLabel]) => {
+                            const rows = await fetch(`/api/leaderboard?dimension=${dimension}&days=30&limit=5&sort=worst`).then(r => r.json());
+                            document.getElementById(elementId).innerHTML = renderLeaderboard(rows, emptyLabel);
+                        }));
                     } catch (error) {
                         console.error('Error loading data:', error);
                     }
