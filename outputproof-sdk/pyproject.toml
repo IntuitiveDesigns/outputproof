@@ -1,0 +1,138 @@
+# OutputProof - AI Agent Output Verification Platform
+# Copyright 2026 StreamKernel LLC
+# Licensed under the Apache License, Version 2.0
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "outputproof"
+version = "1.0.0"
+description = "OutputProof - infrastructure for trusting AI work product"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "Apache-2.0"}
+authors = [
+    {name = "StreamKernel LLC", email = "steven.lopez@streamkernel.io"}
+]
+maintainers = [
+    {name = "StreamKernel LLC", email = "steven.lopez@streamkernel.io"}
+]
+keywords = [
+    "ai",
+    "verification",
+    "agent",
+    "testing",
+    "llm",
+    "claude",
+    "langchain",
+    "code-quality",
+    "assertions"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Typing :: Typed",
+]
+dependencies = [
+    "httpx>=0.25.0",
+    "pydantic>=2.0.0",
+    "pyyaml>=6.0",
+    "click>=8.1.0",
+    "rich>=13.0.0",
+    "pydantic-settings>=2.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "mypy>=1.8.0",
+    "black>=24.0.0",
+    "ruff>=0.1.0",
+    "pre-commit>=3.6.0",
+]
+judge = [
+    "anthropic>=0.20.0",
+    "openai>=1.10.0",
+]
+langchain = [
+    "langchain>=0.1.0",
+    "langchain-core>=0.1.0",
+]
+server = [
+    "outputproof-server>=1.0.0",
+]
+all = [
+    "outputproof[judge]",
+    "outputproof[langchain]",
+]
+
+[project.scripts]
+outputproof = "outputproof.cli.main:cli"
+
+[project.urls]
+Homepage = "https://outputproof.io"
+Documentation = "https://outputproof.io/docs"
+Repository = "https://github.com/IntuitiveDesigns/outputproof"
+Issues = "https://github.com/IntuitiveDesigns/outputproof/issues"
+Changelog = "https://github.com/IntuitiveDesigns/outputproof/blob/main/CHANGELOG.md"
+Company = "https://streamkernel.io"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+outputproof = ["py.typed"]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311', 'py312']
+include = '\.pyi?$'
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by black)
+    "B008",  # do not perform function calls in argument defaults
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+addopts = "-v --cov=outputproof --cov-report=term-missing"

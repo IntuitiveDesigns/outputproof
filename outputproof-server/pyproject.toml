@@ -1,0 +1,64 @@
+# OutputProof Server - source-available dashboard package
+# Copyright 2026 StreamKernel LLC
+# SPDX-License-Identifier: BUSL-1.1
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "outputproof-server"
+version = "1.0.0"
+description = "OutputProof source-available dashboard server and team API"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "BUSL-1.1"}
+authors = [
+    {name = "StreamKernel LLC", email = "steven.lopez@streamkernel.io"}
+]
+maintainers = [
+    {name = "StreamKernel LLC", email = "steven.lopez@streamkernel.io"}
+]
+keywords = [
+    "ai",
+    "verification",
+    "dashboard",
+    "policy",
+    "team",
+    "llm",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Testing",
+    "Typing :: Typed",
+]
+dependencies = [
+    "outputproof>=1.0.0",
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+    "pydantic>=2.0.0",
+]
+
+[project.scripts]
+outputproof-server = "outputproof_server.cli:main"
+
+[project.urls]
+Homepage = "https://outputproof.io"
+Documentation = "https://outputproof.io/docs"
+Repository = "https://github.com/IntuitiveDesigns/outputproof"
+Issues = "https://github.com/IntuitiveDesigns/outputproof/issues"
+Commercial = "https://outputproof.io/pricing"
+Company = "https://streamkernel.io"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+outputproof_server = ["py.typed"]

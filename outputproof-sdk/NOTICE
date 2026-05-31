@@ -1,0 +1,24 @@
+OutputProof
+Copyright 2026 StreamKernel LLC
+
+Repository licensing summary
+
+The OutputProof SDK is licensed under the Apache License, Version 2.0.
+See LICENSE for the full text.
+
+Apache 2.0 SDK components include:
+  - outputproof
+  - assertion engine
+  - LLM-as-judge module
+  - command line interface
+  - Claude Code MCP integration scaffolding
+  - local audit log helpers
+  - data models and assertion configuration helpers
+
+The dashboard server and team API are distributed separately as
+outputproof-server under the Business Source License 1.1. See the sibling
+server package license when that package is distributed alongside this SDK.
+
+Commercial services, hosted infrastructure, trademarks, support contracts,
+and enterprise features are not granted by the Apache 2.0 SDK license.
+See COMMERCIAL.md.
