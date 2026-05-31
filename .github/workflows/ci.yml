@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.12"]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install packages
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ./outputproof-sdk
+          python -m pip install -e ./outputproof-server
+          python -m pip install pytest pytest-asyncio
+
+      - name: Run SDK tests
+        working-directory: outputproof-sdk
+        run: python -m pytest -o addopts= -p no:cacheprovider
+
+      - name: Run server tests
+        run: python -m pytest outputproof-server/tests -q -p no:cacheprovider

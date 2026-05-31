@@ -1,5 +1,12 @@
 # OutputProof Server
 
+[![Server License: BSL 1.1](https://img.shields.io/badge/server-BSL%201.1-orange.svg)](LICENSE)
+[![CI](https://github.com/IntuitiveDesigns/outputproof/actions/workflows/ci.yml/badge.svg)](https://github.com/IntuitiveDesigns/outputproof/actions/workflows/ci.yml)
+[![FastAPI](https://img.shields.io/badge/FastAPI-dashboard-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![SQLite](https://img.shields.io/badge/SQLite-local%20history-003B57?logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![GitHub stars](https://img.shields.io/github/stars/IntuitiveDesigns/outputproof?style=social)](https://github.com/IntuitiveDesigns/outputproof/stargazers)
+[![GitHub downloads](https://img.shields.io/github/downloads/IntuitiveDesigns/outputproof/total?label=downloads)](https://github.com/IntuitiveDesigns/outputproof/releases)
+
 Source-available dashboard server and team API for OutputProof.
 
 This package contains the monetizable server/dashboard surface described in the

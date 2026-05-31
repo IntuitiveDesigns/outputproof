@@ -1,8 +1,12 @@
 # OutputProof
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Build Status](https://github.com/IntuitiveDesigns/outputproof/actions/workflows/ci.yml/badge.svg)](https://github.com/IntuitiveDesigns/outputproof/actions)
-[![Coverage](https://codecov.io/gh/IntuitiveDesigns/outputproof/branch/main/graph/badge.svg)](https://codecov.io/gh/IntuitiveDesigns/outputproof)
+[![CI](https://github.com/IntuitiveDesigns/outputproof/actions/workflows/ci.yml/badge.svg)](https://github.com/IntuitiveDesigns/outputproof/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Package](https://img.shields.io/badge/package-outputproof-blue.svg)](https://github.com/IntuitiveDesigns/outputproof/tree/main/outputproof-sdk)
+[![GitHub stars](https://img.shields.io/github/stars/IntuitiveDesigns/outputproof?style=social)](https://github.com/IntuitiveDesigns/outputproof/stargazers)
+[![GitHub watchers](https://img.shields.io/github/watchers/IntuitiveDesigns/outputproof?style=social)](https://github.com/IntuitiveDesigns/outputproof/watchers)
+[![GitHub downloads](https://img.shields.io/github/downloads/IntuitiveDesigns/outputproof/total?label=downloads)](https://github.com/IntuitiveDesigns/outputproof/releases)
 
 **AI Agent Output Verification Platform** — Infrastructure for trusting AI work product.
 
