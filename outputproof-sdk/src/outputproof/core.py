@@ -27,6 +27,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Optional, Union
 
+from outputproof.assertions.base import Assertion
 from outputproof.models import (
     AssertionMode,
     AssertionResult,
@@ -36,7 +37,6 @@ from outputproof.models import (
     VerificationResult,
     VerificationVerdict,
 )
-from outputproof.assertions.base import Assertion
 
 logger = logging.getLogger(__name__)
 
@@ -258,8 +258,8 @@ class Verifier:
         if self.assertion_mode == AssertionMode.ALL:
             if passed_count == total_count:
                 return VerificationVerdict.PASS, 1.0
-            if passed_count == 0:
-                return VerificationVerdict.FAIL, 0.0
+            if pass_rate < self.assertion_threshold:
+                return VerificationVerdict.FAIL, pass_rate
             return VerificationVerdict.PARTIAL, pass_rate
 
         if self.assertion_mode == AssertionMode.ANY:

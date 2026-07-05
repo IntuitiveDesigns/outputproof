@@ -16,11 +16,13 @@
 Tests for enterprise-grade core verification behavior.
 """
 
+import sys
+
 import pytest
 
 from outputproof import assertions as a
-from outputproof.core import VerificationError, Verifier, verify
 from outputproof.assertions.base import Assertion
+from outputproof.core import VerificationError, Verifier, verify
 from outputproof.models import AssertionResult, AssertionType, VerificationRequest
 
 
@@ -50,9 +52,52 @@ async def test_assertion_mode_all_requires_every_assertion():
 
     result = await verifier.verify("check output", "present", agent_id="agent")
 
-    assert result.verdict.value == "PARTIAL"
+    assert result.verdict.value == "FAIL"
     assert result.confidence_score == 0.5
     assert result.corrective_prompt is not None
+
+
+@pytest.mark.asyncio
+async def test_assertion_mode_all_fails_tampered_grounding_even_with_self_reported_flag():
+    verifier = Verifier(
+        assertions=[
+            a.output_matches(r'"source_text_hashes_verified"\s*:\s*true'),
+            a.command_succeeds(f'"{sys.executable}" -c "import sys; sys.exit(1)"'),
+        ],
+        assertion_mode="all",
+        assertion_threshold=1.0,
+    )
+
+    result = await verifier.verify(
+        "verify grounding",
+        '{"source_text_hashes_verified": true, "hash_verified": true}',
+        agent_id="agent",
+    )
+
+    assert result.verdict.value == "FAIL"
+    assert result.confidence_score == 0.5
+    assert [assertion.passed for assertion in result.assertion_results] == [True, False]
+
+
+@pytest.mark.asyncio
+async def test_assertion_mode_all_passes_clean_grounding():
+    verifier = Verifier(
+        assertions=[
+            a.output_matches(r'"source_text_hashes_verified"\s*:\s*true'),
+            a.command_succeeds(f'"{sys.executable}" -c "import sys; sys.exit(0)"'),
+        ],
+        assertion_mode="all",
+        assertion_threshold=1.0,
+    )
+
+    result = await verifier.verify(
+        "verify grounding",
+        '{"source_text_hashes_verified": true, "hash_verified": true}',
+        agent_id="agent",
+    )
+
+    assert result.verdict.value == "PASS"
+    assert result.confidence_score == 1.0
 
 
 @pytest.mark.asyncio

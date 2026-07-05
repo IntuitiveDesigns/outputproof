@@ -246,6 +246,23 @@ assertions:
     test_path: tests/test_auth.py
 ```
 
+### Grounding and Tamper Checks
+
+For source-grounded outputs, the authoritative grounding signal must come from an
+independent recomputation such as a `command_succeeds` assertion that re-hashes
+the referenced source. Do not treat self-reported envelope fields like
+`source_text_hashes_verified: true` or `hash_verified: true` as proof of
+grounding; those fields may be useful context, but they must not mask an
+independent recompute failure.
+
+With `assertion_mode="all"` and the default `assertion_threshold=1.0`, any
+failed assertion is a hard `FAIL`. A tampered source whose independent grounding
+command fails must therefore fail closed even if other assertions pass.
+
+Native in-runtime grounding recomputation is on the roadmap; until then, use
+`command_succeeds` for an independent verifier command and keep that command as
+the enforcement signal.
+
 ### Running Examples
 
 The package includes example scripts in the `examples/` directory:
